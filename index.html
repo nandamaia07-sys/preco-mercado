@@ -81,7 +81,7 @@ header.top h1{font-size:28px;line-height:1.05;font-weight:800;letter-spacing:-.0
 .addrow input{flex:1;min-width:120px}
 .linkbtns{display:flex;gap:8px;margin-top:12px}
 
-input[type=text],input[type=month],input[type=number]{border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:10px;padding:11px 12px;font:inherit;width:100%}
+input[type=text],input[type=month],input[type=number],select{border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:10px;padding:11px 12px;font:inherit;width:100%}
 label{display:block;font-size:14px;font-weight:600;margin:14px 0 6px}
 .btn{border:0;border-radius:12px;padding:12px 16px;font-weight:600;background:var(--green);color:var(--green-ink)}
 .btn.ghost{background:var(--bg);color:var(--ink);border:1px solid var(--line)}
@@ -134,7 +134,7 @@ label{display:block;font-size:14px;font-weight:600;margin:14px 0 6px}
 <script>
 (function(){
   var KEY = 'precos-mercado-v1';
-  var data = { categories: [], shop: { items: [], lists: {} } };
+  var data = { categories: [], shop: { items: [], lists: {} }, marketNames: [] };
   var view = { screen: 'home', catId: null, marketId: null, open: {}, q: '', viewerSrc: null };
   var storageOk = true;
 
@@ -144,12 +144,17 @@ label{display:block;font-size:14px;font-weight:600;margin:14px 0 6px}
     if(!data.shop) data.shop = { items: [], lists: {} };
     if(!data.shop.items) data.shop.items = [];
     if(!data.shop.lists) data.shop.lists = {};
+    if(!Array.isArray(data.marketNames)) data.marketNames = [];
     data.categories.forEach(function(c){
       if(!Array.isArray(c.markets)){
         var m = { id: uid(), name: 'Geral', products: Array.isArray(c.products) ? c.products : [] };
         c.markets = [m];
       }
       delete c.products;
+      c.markets.forEach(function(m){
+        var low = m.name.toLowerCase();
+        if(!data.marketNames.some(function(n){ return n.toLowerCase() === low; })) data.marketNames.push(m.name);
+      });
     });
   }
   function save(){
@@ -390,12 +395,25 @@ label{display:block;font-size:14px;font-weight:600;margin:14px 0 6px}
 
   function marketSheet(existing){
     var c = cat();
-    var o = sheet('<h2>'+(existing?'Editar mercado':'Novo mercado')+'</h2><label for="mn">Nome do mercado</label>'+
+    var usedLow = c.markets.filter(function(m){ return !existing || m.id !== existing.id; }).map(function(m){ return m.name.toLowerCase(); });
+    var known = data.marketNames.filter(function(n){ return usedLow.indexOf(n.toLowerCase()) === -1; }).sort(byName);
+    var chipsHtml = known.length ? '<label>Selecionar</label><div class="chips" id="mktChips">' + known.map(function(n){
+      return '<button type="button" class="chip" data-mktname="'+esc(n)+'">'+esc(n)+'</button>';
+    }).join('') + '</div>' : '';
+    var o = sheet('<h2>'+(existing?'Editar mercado':'Novo mercado')+'</h2>'+chipsHtml+
+      '<label for="mn">'+(known.length?'Ou digite um novo':'Nome do mercado')+'</label>'+
       '<input type="text" id="mn" placeholder="Ex.: Carrefour, Assaí" value="'+(existing?esc(existing.name):'')+'">'+
       '<div class="actions">'+(existing?'<button class="btn danger" id="del">Excluir</button>':'')+'<button class="btn ghost" id="cancel">Cancelar</button><button class="btn" id="ok">Salvar</button></div>');
+    var mn = o.querySelector('#mn');
+    o.querySelectorAll('[data-mktname]').forEach(function(b){ b.onclick = function(){ mn.value = b.dataset.mktname; mn.focus(); }; });
     o.querySelector('#cancel').onclick = function(){ o.remove(); };
     o.querySelector('#ok').onclick = function(){
-      var n = o.querySelector('#mn').value.trim(); if(!n){ toast('Digite o nome do mercado'); return; }
+      var n = mn.value.trim(); if(!n){ toast('Digite ou selecione o nome do mercado'); return; }
+      var low = n.toLowerCase();
+      if(!data.marketNames.some(function(x){ return x.toLowerCase() === low; })) data.marketNames.push(n);
+      if(c.markets.some(function(m){ return m.name.toLowerCase() === low && (!existing || m.id !== existing.id); })){
+        toast('Esse mercado já existe nesta categoria'); return;
+      }
       if(existing){ existing.name = n; save(); o.remove(); render(); }
       else {
         var m = { id: uid(), name: n, products: [] };
@@ -415,9 +433,15 @@ label{display:block;font-size:14px;font-weight:600;margin:14px 0 6px}
   }
 
   function prodSheet(existing){
-    var m = market(), photo = existing ? existing.photo : '';
+    var c = cat(), m = market(), photo = existing ? existing.photo : '';
+    var otherMarkets = existing ? c.markets.filter(function(x){ return x.id !== m.id; }).sort(byName) : [];
+    var moveHtml = otherMarkets.length ? '<label for="pmkt">Mercado</label><select id="pmkt">'+
+      '<option value="">'+esc(m.name)+' (atual)</option>'+
+      otherMarkets.map(function(x){ return '<option value="'+x.id+'">'+esc(x.name)+'</option>'; }).join('')+
+      '</select>' : '';
     var o = sheet('<h2>'+(existing?'Editar produto':'Novo produto')+'</h2>'+
       '<label for="pn">Produto</label><input type="text" id="pn" placeholder="Ex.: Nescau 400g" value="'+(existing?esc(existing.name):'')+'">'+
+      moveHtml+
       '<label>Foto</label><div class="photo-pick"><span class="thumb" id="prev">'+(photo?'<img src="'+photo+'" alt="">':'📷')+'</span>'+
       '<div><button class="btn ghost small" type="button" id="pick">Tirar foto</button> <button class="btn ghost small" type="button" id="pickLib">Da galeria</button> <button class="btn ghost small" type="button" id="rm" '+(photo?'':'hidden')+'>Remover</button>'+
       '<input type="file" id="file" accept="image/*" capture="environment"><input type="file" id="fileLib" accept="image/*"></div></div>'+
@@ -438,8 +462,21 @@ label{display:block;font-size:14px;font-weight:600;margin:14px 0 6px}
     o.querySelector('#cancel').onclick = function(){ o.remove(); };
     o.querySelector('#ok').onclick = function(){
       var n = o.querySelector('#pn').value.trim(); if(!n){ toast('Digite o nome do produto'); return; }
-      if(existing){ existing.name = n; existing.photo = photo; }
-      else {
+      if(existing){
+        existing.name = n; existing.photo = photo;
+        var sel = o.querySelector('#pmkt'), destId = sel && sel.value;
+        if(destId){
+          var dest = c.markets.find(function(x){ return x.id === destId; });
+          if(dest){
+            m.products = m.products.filter(function(x){ return x.id !== existing.id; });
+            dest.products.push(existing);
+            save(); o.remove();
+            goTo('market', view.catId, dest.id);
+            toast('Produto movido para '+dest.name);
+            return;
+          }
+        }
+      } else {
         var p = { id: uid(), name: n, photo: photo, prices: [] };
         var vs = o.querySelector('#pv').value.trim();
         if(vs){
@@ -569,7 +606,21 @@ label{display:block;font-size:14px;font-weight:600;margin:14px 0 6px}
     }; });
   }
 
-  if("serviceWorker" in navigator){ try{ navigator.serviceWorker.register("sw.js"); }catch(e){} }
+  if("serviceWorker" in navigator){
+    try{
+      navigator.serviceWorker.register("sw.js").then(function(reg){
+        reg.update().catch(function(){});
+        reg.addEventListener('updatefound', function(){
+          var nw = reg.installing;
+          if(!nw) return;
+          nw.addEventListener('statechange', function(){
+            if(nw.state === 'activated') location.reload();
+          });
+        });
+      });
+      navigator.serviceWorker.addEventListener('controllerchange', function(){ location.reload(); });
+    }catch(e){}
+  }
   load();
   render();
   if(!storageOk) toast('Armazenamento indisponível: dados não serão salvos');
