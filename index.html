@@ -199,14 +199,31 @@ label{display:block;font-size:14px;font-weight:600;margin:14px 0 6px}
     bind();
   }
 
+  /* ---------- Navegação / botão voltar do celular ---------- */
+  function navState(){ return { screen: view.screen, catId: view.catId, marketId: view.marketId }; }
+  function goTo(screen, catId, marketId){
+    view.screen = screen; view.catId = catId || null; view.marketId = marketId || null;
+    window.scrollTo(0,0);
+    try { history.pushState(navState(), ''); } catch(e){}
+    render();
+  }
+  window.addEventListener('popstate', function(e){
+    if(view.viewerSrc){ view.viewerSrc = null; renderViewer(); return; }
+    var st = e.state || { screen: 'home' };
+    view.screen = st.screen; view.catId = st.catId || null; view.marketId = st.marketId || null;
+    render();
+  });
+  try { history.replaceState(navState(), ''); } catch(e){}
+
   function renderViewer(){
     var old = document.getElementById('viewer'); if(old) old.remove();
     if(!view.viewerSrc) return;
     var o = document.createElement('div'); o.className = 'viewer'; o.id = 'viewer';
     o.innerHTML = '<button class="vclose" id="vclose" aria-label="Fechar">✕</button><img src="'+view.viewerSrc+'" alt="">';
-    o.addEventListener('click', function(e){ if(e.target === o){ view.viewerSrc = null; renderViewer(); } });
+    function closeViewer(){ view.viewerSrc = null; try{ history.back(); }catch(e){ renderViewer(); } }
+    o.addEventListener('click', function(e){ if(e.target === o) closeViewer(); });
     document.body.appendChild(o);
-    o.querySelector('#vclose').onclick = function(){ view.viewerSrc = null; renderViewer(); };
+    o.querySelector('#vclose').onclick = closeViewer;
   }
 
   function homeHTML(){
@@ -362,7 +379,10 @@ label{display:block;font-size:14px;font-weight:600;margin:14px 0 6px}
     if(existing) o.querySelector('#del').onclick = function(){
       askConfirm('Excluir "'+existing.name+'" e todos os produtos dentro dela?', 'Excluir', function(){
         data.categories = data.categories.filter(function(c){ return c.id !== existing.id; });
-        save(); o.remove(); view.screen = 'home'; render();
+        save(); o.remove();
+        view.screen = 'home'; view.catId = null;
+        try { history.replaceState(navState(), ''); } catch(e){}
+        render();
       });
     };
   }
@@ -379,13 +399,16 @@ label{display:block;font-size:14px;font-weight:600;margin:14px 0 6px}
       else {
         var m = { id: uid(), name: n, products: [] };
         c.markets.push(m); save(); o.remove();
-        view.marketId = m.id; view.screen = 'market'; render();
+        goTo('market', view.catId, m.id);
       }
     };
     if(existing) o.querySelector('#del').onclick = function(){
       askConfirm('Excluir "'+existing.name+'" e todos os produtos dentro dele?', 'Excluir', function(){
         c.markets = c.markets.filter(function(m){ return m.id !== existing.id; });
-        save(); o.remove(); view.screen = 'cat'; view.marketId = null; render();
+        save(); o.remove();
+        view.screen = 'cat'; view.marketId = null;
+        try { history.replaceState(navState(), ''); } catch(e){}
+        render();
       });
     };
   }
@@ -437,7 +460,7 @@ label{display:block;font-size:14px;font-weight:600;margin:14px 0 6px}
 
   function bind(){
     var app = document.getElementById('app');
-    app.querySelectorAll('[data-tab]').forEach(function(b){ b.onclick = function(){ view.screen = b.dataset.tab; window.scrollTo(0,0); render(); }; });
+    app.querySelectorAll('[data-tab]').forEach(function(b){ b.onclick = function(){ goTo(b.dataset.tab); }; });
     var lq = app.querySelector('#lq');
     if(lq) lq.oninput = function(){ view.lq = lq.value; var pos = lq.selectionStart; render(); var n = document.getElementById('lq'); n.focus(); n.setSelectionRange(pos,pos); };
     var ni = app.querySelector('#newItem');
@@ -489,13 +512,13 @@ label{display:block;font-size:14px;font-weight:600;margin:14px 0 6px}
       b.oncontextmenu = function(e){ e.preventDefault(); };
       b.onclick = function(){
         if(fired){ fired = false; return; }
-        view.catId = b.dataset.cat; view.screen = 'cat'; window.scrollTo(0,0); render();
+        goTo('cat', b.dataset.cat);
       };
     });
     var ac = app.querySelector('#addCat'); if(ac) ac.onclick = function(){ catSheet(); };
-    var bk = app.querySelector('#back'); if(bk) bk.onclick = function(){ view.screen = 'home'; view.catId = null; render(); };
+    var bk = app.querySelector('#back'); if(bk) bk.onclick = function(){ try{ history.back(); }catch(e){ goTo('home'); } };
     var ec = app.querySelector('#editCat'); if(ec) ec.onclick = function(){ catSheet(cat()); };
-    var bkm = app.querySelector('#backMkt'); if(bkm) bkm.onclick = function(){ view.screen = 'cat'; view.marketId = null; render(); };
+    var bkm = app.querySelector('#backMkt'); if(bkm) bkm.onclick = function(){ try{ history.back(); }catch(e){ goTo('cat', view.catId); } };
     var em = app.querySelector('#editMkt'); if(em) em.onclick = function(){ marketSheet(market()); };
     var amk = app.querySelector('#addMkt'); if(amk) amk.onclick = function(){ marketSheet(); };
     app.querySelectorAll('[data-mkt]').forEach(function(b){
@@ -514,12 +537,13 @@ label{display:block;font-size:14px;font-weight:600;margin:14px 0 6px}
       b.oncontextmenu = function(e){ e.preventDefault(); };
       b.onclick = function(){
         if(fired){ fired = false; return; }
-        view.marketId = b.dataset.mkt; view.screen = 'market'; window.scrollTo(0,0); render();
+        goTo('market', view.catId, b.dataset.mkt);
       };
     });
     var ap = app.querySelector('#addProd'); if(ap) ap.onclick = function(){ prodSheet(); };
     app.querySelectorAll('[data-photo]').forEach(function(b){ b.onclick = function(e){
-      e.stopPropagation(); var p = findProd(b.dataset.photo); if(p && p.photo){ view.viewerSrc = p.photo; renderViewer(); }
+      e.stopPropagation(); var p = findProd(b.dataset.photo);
+      if(p && p.photo){ view.viewerSrc = p.photo; try{ history.pushState(navState(), ''); }catch(err){} renderViewer(); }
     }; });
     app.querySelectorAll('[data-toggle]').forEach(function(b){ b.onclick = function(e){
       if(e.target.closest('[data-photo]')) return;
