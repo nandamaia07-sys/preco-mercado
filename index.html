@@ -96,6 +96,7 @@ label{display:block;font-size:14px;font-weight:600;margin:14px 0 6px}
 .photo-pick{display:flex;gap:12px;align-items:center}
 .photo-pick .thumb{width:84px;height:84px}
 .photo-pick input[type=file]{display:none}
+.photo-pick > div{display:flex;flex-wrap:wrap;gap:8px}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .actions{display:flex;gap:8px;margin-top:20px}
 .actions .btn{flex:1}
@@ -418,18 +419,21 @@ label{display:block;font-size:14px;font-weight:600;margin:14px 0 6px}
     var o = sheet('<h2>'+(existing?'Editar produto':'Novo produto')+'</h2>'+
       '<label for="pn">Produto</label><input type="text" id="pn" placeholder="Ex.: Nescau 400g" value="'+(existing?esc(existing.name):'')+'">'+
       '<label>Foto</label><div class="photo-pick"><span class="thumb" id="prev">'+(photo?'<img src="'+photo+'" alt="">':'📷')+'</span>'+
-      '<div><button class="btn ghost small" type="button" id="pick">Tirar foto</button> <button class="btn ghost small" type="button" id="rm" '+(photo?'':'hidden')+'>Remover</button>'+
-      '<input type="file" id="file" accept="image/*" capture="environment"></div></div>'+
+      '<div><button class="btn ghost small" type="button" id="pick">Tirar foto</button> <button class="btn ghost small" type="button" id="pickLib">Da galeria</button> <button class="btn ghost small" type="button" id="rm" '+(photo?'':'hidden')+'>Remover</button>'+
+      '<input type="file" id="file" accept="image/*" capture="environment"><input type="file" id="fileLib" accept="image/*"></div></div>'+
       (existing ? '' : '<div class="two"><div><label for="pv">Valor (R$)</label><input type="text" id="pv" inputmode="decimal" placeholder="0,00"></div>'+
       '<div><label for="pm">Mês e ano</label><input type="month" id="pm" value="'+nowYM()+'"></div></div>')+
       '<div class="actions">'+(existing?'<button class="btn danger" id="del">Excluir</button>':'')+'<button class="btn ghost" id="cancel">Cancelar</button><button class="btn" id="ok">Salvar</button></div>');
-    var file = o.querySelector('#file'), prev = o.querySelector('#prev'), rm = o.querySelector('#rm');
+    var file = o.querySelector('#file'), fileLib = o.querySelector('#fileLib'), prev = o.querySelector('#prev'), rm = o.querySelector('#rm');
     o.querySelector('#pick').onclick = function(){ file.click(); };
-    file.onchange = function(){
-      if(!file.files[0]) return;
-      compress(file.files[0]).then(function(d){ photo = d; prev.innerHTML = '<img src="'+d+'" alt="">'; rm.hidden = false; })
+    o.querySelector('#pickLib').onclick = function(){ fileLib.click(); };
+    function onPhoto(input){
+      if(!input.files[0]) return;
+      compress(input.files[0]).then(function(d){ photo = d; prev.innerHTML = '<img src="'+d+'" alt="">'; rm.hidden = false; })
         .catch(function(){ toast('Não foi possível ler a foto'); });
-    };
+    }
+    file.onchange = function(){ onPhoto(file); };
+    fileLib.onchange = function(){ onPhoto(fileLib); };
     rm.onclick = function(){ photo = ''; prev.textContent = '📷'; rm.hidden = true; };
     o.querySelector('#cancel').onclick = function(){ o.remove(); };
     o.querySelector('#ok').onclick = function(){
