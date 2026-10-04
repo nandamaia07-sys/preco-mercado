@@ -212,6 +212,8 @@ label{display:block;font-size:14px;font-weight:600;margin:14px 0 6px}
   function navState(){ return { screen: view.screen, catId: view.catId, marketId: view.marketId }; }
   function goTo(screen, catId, marketId){
     view.screen = screen; view.catId = catId || null; view.marketId = marketId || null;
+    if(screen !== 'markets') view.mq = '';
+    if(screen !== 'list') view.lq = '';
     window.scrollTo(0,0);
     try { history.pushState(navState(), ''); } catch(e){}
     render();
@@ -300,7 +302,7 @@ label{display:block;font-size:14px;font-weight:600;margin:14px 0 6px}
     var h = '<header class="top"><h1>Mercados</h1></header>' + navHTML('markets');
     h += '<div class="addbox"><input type="text" id="newMktName" placeholder="Novo mercado (ex.: Carrefour)" aria-label="Novo mercado"><button class="btn" id="addMktName">Adicionar</button></div>';
     if(data.marketNames.length > 5) h += '<input class="search" id="mq" type="text" placeholder="Pesquisar" value="'+esc(view.mq||'')+'" aria-label="Pesquisar">';
-    h += '<p class="sub" style="margin:0 0 10px">Segure um mercado por 2 segundos para editar ou excluir. Esses nomes aparecem ao escolher o mercado de um produto.</p>';
+    h += '<p class="sub" style="margin:0 0 10px">Toque para excluir. Segure 2 segundos para editar o nome. Esses nomes aparecem ao escolher o mercado de um produto.</p>';
     if(!data.marketNames.length){
       h += '<div class="empty"><b>Nenhum mercado cadastrado</b>Adicione os mercados onde você costuma comprar, como Carrefour ou Assaí.</div>';
     } else if(!names.length){
@@ -464,6 +466,18 @@ label{display:block;font-size:14px;font-weight:600;margin:14px 0 6px}
     };
   }
 
+  function removeMktName(name){
+    var used = [];
+    data.categories.forEach(function(c){ c.markets.forEach(function(m){ if(m.name === name) used.push(c.name); }); });
+    var msg = used.length
+      ? 'Remover "'+name+'" da lista de mercados? Ele continua existindo em: '+used.join(', ')+'. Só sai da lista de seleção rápida.'
+      : 'Remover "'+name+'" da lista de mercados?';
+    askConfirm(msg, 'Remover', function(){
+      data.marketNames = data.marketNames.filter(function(x){ return x !== name; });
+      save(); render();
+    });
+  }
+
   function marketNameSheet(name){
     var o = sheet('<h2>Editar mercado</h2><label for="emn">Nome</label>'+
       '<input type="text" id="emn" value="'+esc(name)+'">'+
@@ -481,17 +495,7 @@ label{display:block;font-size:14px;font-weight:600;margin:14px 0 6px}
       data.categories.forEach(function(c){ c.markets.forEach(function(m){ if(m.name === name) m.name = n; }); });
       save(); o.remove(); render();
     };
-    o.querySelector('#del').onclick = function(){
-      var used = [];
-      data.categories.forEach(function(c){ c.markets.forEach(function(m){ if(m.name === name) used.push(c.name); }); });
-      var msg = used.length
-        ? 'Remover "'+name+'" da lista de mercados? Ele continua existindo em: '+used.join(', ')+'. Só sai da lista de seleção rápida.'
-        : 'Remover "'+name+'" da lista de mercados?';
-      askConfirm(msg, 'Remover', function(){
-        data.marketNames = data.marketNames.filter(function(x){ return x !== name; });
-        save(); o.remove(); render();
-      });
-    };
+    o.querySelector('#del').onclick = function(){ o.remove(); removeMktName(name); };
   }
 
   function prodSheet(existing){
@@ -652,7 +656,10 @@ label{display:block;font-size:14px;font-weight:600;margin:14px 0 6px}
       });
       ['pointerup','pointerleave','pointercancel'].forEach(function(ev){ b.addEventListener(ev, cancel); });
       b.oncontextmenu = function(e){ e.preventDefault(); };
-      b.onclick = function(){ if(fired){ fired = false; } };
+      b.onclick = function(){
+        if(fired){ fired = false; return; }
+        removeMktName(b.dataset.mktedit);
+      };
     });
     var q = app.querySelector('#q');
     if(q) q.oninput = function(){ view.q = q.value; var pos = q.selectionStart; render(); var n = document.getElementById('q'); n.focus(); n.setSelectionRange(pos,pos); };
