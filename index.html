@@ -411,11 +411,21 @@ label{display:block;font-size:14px;font-weight:600;margin:14px 0 6px}
       var n = mn.value.trim(); if(!n){ toast('Digite ou selecione o nome do mercado'); return; }
       var low = n.toLowerCase();
       if(!data.marketNames.some(function(x){ return x.toLowerCase() === low; })) data.marketNames.push(n);
-      if(c.markets.some(function(m){ return m.name.toLowerCase() === low && (!existing || m.id !== existing.id); })){
-        toast('Esse mercado já existe nesta categoria'); return;
+      var dup = c.markets.find(function(m){ return m.name.toLowerCase() === low && (!existing || m.id !== existing.id); });
+      if(existing){
+        if(dup){
+          askConfirm('Já existe um mercado "'+dup.name+'" nesta categoria. Deseja juntar os produtos de "'+existing.name+'" com "'+dup.name+'"?', 'Juntar', function(){
+            dup.products = dup.products.concat(existing.products);
+            c.markets = c.markets.filter(function(m){ return m.id !== existing.id; });
+            save(); o.remove();
+            goTo('market', view.catId, dup.id);
+          });
+          return;
+        }
+        existing.name = n; save(); o.remove(); render();
       }
-      if(existing){ existing.name = n; save(); o.remove(); render(); }
       else {
+        if(dup){ toast('Esse mercado já existe nesta categoria'); return; }
         var m = { id: uid(), name: n, products: [] };
         c.markets.push(m); save(); o.remove();
         goTo('market', view.catId, m.id);
@@ -434,11 +444,15 @@ label{display:block;font-size:14px;font-weight:600;margin:14px 0 6px}
 
   function prodSheet(existing){
     var c = cat(), m = market(), photo = existing ? existing.photo : '';
-    var otherMarkets = existing ? c.markets.filter(function(x){ return x.id !== m.id; }).sort(byName) : [];
-    var moveHtml = otherMarkets.length ? '<label for="pmkt">Mercado</label><select id="pmkt">'+
-      '<option value="">'+esc(m.name)+' (atual)</option>'+
-      otherMarkets.map(function(x){ return '<option value="'+x.id+'">'+esc(x.name)+'</option>'; }).join('')+
-      '</select>' : '';
+    var allCats = data.categories.slice().sort(byName);
+    var moveHtml = existing ? (
+      '<div class="two">'+
+      '<div><label for="pcat">Categoria</label><select id="pcat">'+
+      allCats.map(function(x){ return '<option value="'+x.id+'"'+(x.id===c.id?' selected':'')+'>'+esc(x.name)+'</option>'; }).join('')+
+      '</select></div>'+
+      '<div><label for="pmkt">Mercado</label><select id="pmkt"></select></div>'+
+      '</div>'
+    ) : '';
     var o = sheet('<h2>'+(existing?'Editar produto':'Novo produto')+'</h2>'+
       '<label for="pn">Produto</label><input type="text" id="pn" placeholder="Ex.: Nescau 400g" value="'+(existing?esc(existing.name):'')+'">'+
       moveHtml+
@@ -449,6 +463,19 @@ label{display:block;font-size:14px;font-weight:600;margin:14px 0 6px}
       '<div><label for="pm">Mês e ano</label><input type="month" id="pm" value="'+nowYM()+'"></div></div>')+
       '<div class="actions">'+(existing?'<button class="btn danger" id="del">Excluir</button>':'')+'<button class="btn ghost" id="cancel">Cancelar</button><button class="btn" id="ok">Salvar</button></div>');
     var file = o.querySelector('#file'), fileLib = o.querySelector('#fileLib'), prev = o.querySelector('#prev'), rm = o.querySelector('#rm');
+    var pcat = o.querySelector('#pcat'), pmkt = o.querySelector('#pmkt');
+    function fillMarkets(catId, preferId){
+      if(!pmkt) return;
+      var cc = data.categories.find(function(x){ return x.id === catId; });
+      var mkts = cc ? cc.markets.slice().sort(byName) : [];
+      pmkt.innerHTML = mkts.map(function(x){ return '<option value="'+x.id+'">'+esc(x.name)+'</option>'; }).join('');
+      var pick = preferId && mkts.some(function(x){ return x.id === preferId; }) ? preferId : (mkts[0] && mkts[0].id);
+      if(pick) pmkt.value = pick;
+    }
+    if(pcat){
+      fillMarkets(c.id, m.id);
+      pcat.onchange = function(){ fillMarkets(pcat.value, null); };
+    }
     o.querySelector('#pick').onclick = function(){ file.click(); };
     o.querySelector('#pickLib').onclick = function(){ fileLib.click(); };
     function onPhoto(input){
@@ -464,14 +491,16 @@ label{display:block;font-size:14px;font-weight:600;margin:14px 0 6px}
       var n = o.querySelector('#pn').value.trim(); if(!n){ toast('Digite o nome do produto'); return; }
       if(existing){
         existing.name = n; existing.photo = photo;
-        var sel = o.querySelector('#pmkt'), destId = sel && sel.value;
-        if(destId){
-          var dest = c.markets.find(function(x){ return x.id === destId; });
+        var destCatId = pcat && pcat.value, destMktId = pmkt && pmkt.value;
+        var moving = destCatId && (destCatId !== c.id || destMktId !== m.id);
+        if(moving){
+          var destCat = data.categories.find(function(x){ return x.id === destCatId; });
+          var dest = destCat && destCat.markets.find(function(x){ return x.id === destMktId; });
           if(dest){
             m.products = m.products.filter(function(x){ return x.id !== existing.id; });
             dest.products.push(existing);
             save(); o.remove();
-            goTo('market', view.catId, dest.id);
+            goTo('market', destCatId, dest.id);
             toast('Produto movido para '+dest.name);
             return;
           }
