@@ -102,7 +102,8 @@ label{display:block;font-size:14px;font-weight:600;margin:14px 0 6px}
 .actions .btn{flex:1}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(90px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:99px;font-size:14px;z-index:20}
 .tabs{display:grid;grid-template-columns:1fr 1fr;gap:6px;background:var(--line);padding:4px;border-radius:14px;margin-bottom:16px}
-.tabs button{border:0;background:none;border-radius:10px;padding:11px 8px;font-weight:600;color:var(--muted)}
+.tabs.tabs3{grid-template-columns:1fr 1fr 1fr}
+.tabs button{border:0;background:none;border-radius:10px;padding:11px 6px;font-weight:600;color:var(--muted);font-size:14px}
 .tabs button.on{background:var(--surface);color:var(--ink);box-shadow:var(--shadow)}
 .addbox{display:flex;gap:8px;margin-bottom:12px}
 .addbox input{flex:1;min-width:0}
@@ -110,6 +111,8 @@ label{display:block;font-size:14px;font-weight:600;margin:14px 0 6px}
 .sec h2{margin:0;font-size:18px;font-weight:800;letter-spacing:-.01em}
 .chips{display:flex;flex-wrap:wrap;gap:8px}
 .chip{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:99px;padding:9px 14px;font-weight:600;font-size:15px}
+.chip.mktname{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+.chip.mktname.hold{transform:scale(.95);border-color:var(--green);transition:transform 2s linear}
 .chip.on{background:var(--green);border-color:var(--green);color:var(--green-ink)}
 .chip.del{border-color:var(--up);color:var(--up);background:var(--up-bg)}
 .lrow{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:6px 6px 6px 10px;margin-bottom:8px}
@@ -200,7 +203,7 @@ label{display:block;font-size:14px;font-weight:600;margin:14px 0 6px}
   /* ---------- Render ---------- */
   function render(){
     var app = document.getElementById('app');
-    app.innerHTML = view.screen === 'home' ? homeHTML() : view.screen === 'list' ? listHTML() : view.screen === 'market' ? marketHTML() : catHTML();
+    app.innerHTML = view.screen === 'home' ? homeHTML() : view.screen === 'list' ? listHTML() : view.screen === 'markets' ? marketsHTML() : view.screen === 'market' ? marketHTML() : catHTML();
     renderViewer();
     bind();
   }
@@ -253,7 +256,7 @@ label{display:block;font-size:14px;font-weight:600;margin:14px 0 6px}
   }
 
   function navHTML(active){
-    return '<div class="tabs"><button data-tab="home" class="'+(active==='home'?'on':'')+'">Categorias</button><button data-tab="list" class="'+(active==='list'?'on':'')+'">Lista do mês</button></div>';
+    return '<div class="tabs tabs3"><button data-tab="home" class="'+(active==='home'?'on':'')+'">Categorias</button><button data-tab="markets" class="'+(active==='markets'?'on':'')+'">Mercados</button><button data-tab="list" class="'+(active==='list'?'on':'')+'">Lista</button></div>';
   }
   function monthList(){ var k = nowYM(); if(!data.shop.lists[k]) data.shop.lists[k] = []; return data.shop.lists[k]; }
   function byName(a,b){ return a.name.localeCompare(b.name,'pt-BR',{sensitivity:'base'}); }
@@ -287,6 +290,25 @@ label{display:block;font-size:14px;font-weight:600;margin:14px 0 6px}
       h += rows.map(function(e){
         return '<div class="lrow'+(e.done?' done':'')+'"><button class="chk'+(e.done?' on':'')+'" data-done="'+e.id+'" aria-label="Marcar como comprado">✓</button><span class="nm">'+esc(e.name)+'</span><button class="x" data-rm="'+e.id+'" aria-label="Remover da lista">✕</button></div>';
       }).join('');
+    }
+    return h;
+  }
+
+  function marketsHTML(){
+    var q = (view.mq || '').trim().toLowerCase();
+    var names = data.marketNames.filter(function(n){ return !q || n.toLowerCase().indexOf(q) > -1; }).sort(byName);
+    var h = '<header class="top"><h1>Mercados</h1></header>' + navHTML('markets');
+    h += '<div class="addbox"><input type="text" id="newMktName" placeholder="Novo mercado (ex.: Carrefour)" aria-label="Novo mercado"><button class="btn" id="addMktName">Adicionar</button></div>';
+    if(data.marketNames.length > 5) h += '<input class="search" id="mq" type="text" placeholder="Pesquisar" value="'+esc(view.mq||'')+'" aria-label="Pesquisar">';
+    h += '<p class="sub" style="margin:0 0 10px">Segure um mercado por 2 segundos para editar ou excluir. Esses nomes aparecem ao escolher o mercado de um produto.</p>';
+    if(!data.marketNames.length){
+      h += '<div class="empty"><b>Nenhum mercado cadastrado</b>Adicione os mercados onde você costuma comprar, como Carrefour ou Assaí.</div>';
+    } else if(!names.length){
+      h += '<div class="empty"><b>Nada encontrado</b>Tente outro nome.</div>';
+    } else {
+      h += '<div class="chips">' + names.map(function(n){
+        return '<button class="chip mktname" data-mktedit="'+esc(n)+'">'+esc(n)+'</button>';
+      }).join('') + '</div>';
     }
     return h;
   }
@@ -442,6 +464,36 @@ label{display:block;font-size:14px;font-weight:600;margin:14px 0 6px}
     };
   }
 
+  function marketNameSheet(name){
+    var o = sheet('<h2>Editar mercado</h2><label for="emn">Nome</label>'+
+      '<input type="text" id="emn" value="'+esc(name)+'">'+
+      '<div class="actions"><button class="btn danger" id="del">Excluir</button><button class="btn ghost" id="cancel">Cancelar</button><button class="btn" id="ok">Salvar</button></div>');
+    var inp = o.querySelector('#emn');
+    o.querySelector('#cancel').onclick = function(){ o.remove(); };
+    o.querySelector('#ok').onclick = function(){
+      var n = inp.value.trim(); if(!n){ toast('Digite o nome do mercado'); return; }
+      if(n === name){ o.remove(); return; }
+      var low = n.toLowerCase();
+      if(data.marketNames.some(function(x){ return x.toLowerCase() === low && x !== name; })){
+        toast('Já existe um mercado com esse nome'); return;
+      }
+      var idx = data.marketNames.indexOf(name); if(idx > -1) data.marketNames[idx] = n;
+      data.categories.forEach(function(c){ c.markets.forEach(function(m){ if(m.name === name) m.name = n; }); });
+      save(); o.remove(); render();
+    };
+    o.querySelector('#del').onclick = function(){
+      var used = [];
+      data.categories.forEach(function(c){ c.markets.forEach(function(m){ if(m.name === name) used.push(c.name); }); });
+      var msg = used.length
+        ? 'Remover "'+name+'" da lista de mercados? Ele continua existindo em: '+used.join(', ')+'. Só sai da lista de seleção rápida.'
+        : 'Remover "'+name+'" da lista de mercados?';
+      askConfirm(msg, 'Remover', function(){
+        data.marketNames = data.marketNames.filter(function(x){ return x !== name; });
+        save(); o.remove(); render();
+      });
+    };
+  }
+
   function prodSheet(existing){
     var c = cat(), m = market(), photo = existing ? existing.photo : '';
     var allCats = data.categories.slice().sort(byName);
@@ -468,8 +520,12 @@ label{display:block;font-size:14px;font-weight:600;margin:14px 0 6px}
       if(!pmkt) return;
       var cc = data.categories.find(function(x){ return x.id === catId; });
       var mkts = cc ? cc.markets.slice().sort(byName) : [];
-      pmkt.innerHTML = mkts.map(function(x){ return '<option value="'+x.id+'">'+esc(x.name)+'</option>'; }).join('');
-      var pick = preferId && mkts.some(function(x){ return x.id === preferId; }) ? preferId : (mkts[0] && mkts[0].id);
+      var mktLow = mkts.map(function(x){ return x.name.toLowerCase(); });
+      var extraNames = data.marketNames.filter(function(n){ return mktLow.indexOf(n.toLowerCase()) === -1; }).sort(byName);
+      var html = mkts.map(function(x){ return '<option value="id:'+x.id+'">'+esc(x.name)+'</option>'; }).join('');
+      if(extraNames.length) html += extraNames.map(function(n){ return '<option value="new:'+esc(n)+'">'+esc(n)+' (novo nesta categoria)</option>'; }).join('');
+      pmkt.innerHTML = html;
+      var pick = preferId && mkts.some(function(x){ return x.id === preferId; }) ? 'id:'+preferId : (mkts[0] && 'id:'+mkts[0].id);
       if(pick) pmkt.value = pick;
     }
     if(pcat){
@@ -491,12 +547,20 @@ label{display:block;font-size:14px;font-weight:600;margin:14px 0 6px}
       var n = o.querySelector('#pn').value.trim(); if(!n){ toast('Digite o nome do produto'); return; }
       if(existing){
         existing.name = n; existing.photo = photo;
-        var destCatId = pcat && pcat.value, destMktId = pmkt && pmkt.value;
-        var moving = destCatId && (destCatId !== c.id || destMktId !== m.id);
-        if(moving){
+        var destCatId = pcat && pcat.value, mktSel = pmkt && pmkt.value;
+        if(destCatId && mktSel){
           var destCat = data.categories.find(function(x){ return x.id === destCatId; });
-          var dest = destCat && destCat.markets.find(function(x){ return x.id === destMktId; });
-          if(dest){
+          var dest = null;
+          if(destCat){
+            if(mktSel.indexOf('id:') === 0){
+              dest = destCat.markets.find(function(x){ return x.id === mktSel.slice(3); });
+            } else if(mktSel.indexOf('new:') === 0){
+              dest = { id: uid(), name: mktSel.slice(4), products: [] };
+              destCat.markets.push(dest);
+            }
+          }
+          var moving = dest && (destCatId !== c.id || dest.id !== m.id);
+          if(moving){
             m.products = m.products.filter(function(x){ return x.id !== existing.id; });
             dest.products.push(existing);
             save(); o.remove();
@@ -564,6 +628,32 @@ label{display:block;font-size:14px;font-weight:600;margin:14px 0 6px}
     }; });
     var ech = app.querySelector('#editChips'); if(ech) ech.onclick = function(){ view.editChips = !view.editChips; render(); };
     var cl = app.querySelector('#clearList'); if(cl) cl.onclick = function(){ askConfirm('Deseja mesmo limpar a lista de compras de '+fmtYM(nowYM())+'? Todos os itens adicionados serão removidos da lista. Os itens salvos continuam disponíveis.', 'Limpar lista', function(){ data.shop.lists[nowYM()] = []; save(); render(); }); };
+    var mq = app.querySelector('#mq');
+    if(mq) mq.oninput = function(){ view.mq = mq.value; var pos = mq.selectionStart; render(); var n = document.getElementById('mq'); n.focus(); n.setSelectionRange(pos,pos); };
+    var nmn = app.querySelector('#newMktName');
+    function addMktName(){
+      var n = nmn.value.trim(); if(!n){ toast('Digite o nome do mercado'); return; }
+      var low = n.toLowerCase();
+      if(data.marketNames.some(function(x){ return x.toLowerCase() === low; })){ toast('Esse mercado já está na lista'); return; }
+      data.marketNames.push(n); save(); view.mq = ''; render();
+      var x = document.getElementById('newMktName'); if(x) x.focus();
+    }
+    if(nmn){ nmn.onkeydown = function(e){ if(e.key === 'Enter') addMktName(); }; app.querySelector('#addMktName').onclick = addMktName; }
+    app.querySelectorAll('[data-mktedit]').forEach(function(b){
+      var t, fired = false;
+      function cancel(){ clearTimeout(t); b.classList.remove('hold'); }
+      b.addEventListener('pointerdown', function(){
+        fired = false; cancel(); b.classList.add('hold');
+        t = setTimeout(function(){
+          fired = true; b.classList.remove('hold');
+          try { if(navigator.vibrate) navigator.vibrate(30); } catch(e){}
+          marketNameSheet(b.dataset.mktedit);
+        }, 2000);
+      });
+      ['pointerup','pointerleave','pointercancel'].forEach(function(ev){ b.addEventListener(ev, cancel); });
+      b.oncontextmenu = function(e){ e.preventDefault(); };
+      b.onclick = function(){ if(fired){ fired = false; } };
+    });
     var q = app.querySelector('#q');
     if(q) q.oninput = function(){ view.q = q.value; var pos = q.selectionStart; render(); var n = document.getElementById('q'); n.focus(); n.setSelectionRange(pos,pos); };
     app.querySelectorAll('[data-cat]').forEach(function(b){
