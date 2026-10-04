@@ -262,6 +262,7 @@ label{display:block;font-size:14px;font-weight:600;margin:14px 0 6px}
   }
   function monthList(){ var k = nowYM(); if(!data.shop.lists[k]) data.shop.lists[k] = []; return data.shop.lists[k]; }
   function byName(a,b){ return a.name.localeCompare(b.name,'pt-BR',{sensitivity:'base'}); }
+  function byStr(a,b){ return a.localeCompare(b,'pt-BR',{sensitivity:'base'}); }
 
   function listHTML(){
     var list = monthList(), q = (view.lq || '').trim().toLowerCase();
@@ -298,7 +299,7 @@ label{display:block;font-size:14px;font-weight:600;margin:14px 0 6px}
 
   function marketsHTML(){
     var q = (view.mq || '').trim().toLowerCase();
-    var names = data.marketNames.filter(function(n){ return !q || n.toLowerCase().indexOf(q) > -1; }).sort(byName);
+    var names = data.marketNames.filter(function(n){ return !q || n.toLowerCase().indexOf(q) > -1; }).sort(byStr);
     var h = '<header class="top"><h1>Mercados</h1></header>' + navHTML('markets');
     h += '<div class="addbox"><input type="text" id="newMktName" placeholder="Novo mercado (ex.: Carrefour)" aria-label="Novo mercado"><button class="btn" id="addMktName">Adicionar</button></div>';
     if(data.marketNames.length > 5) h += '<input class="search" id="mq" type="text" placeholder="Pesquisar" value="'+esc(view.mq||'')+'" aria-label="Pesquisar">';
@@ -420,7 +421,7 @@ label{display:block;font-size:14px;font-weight:600;margin:14px 0 6px}
   function marketSheet(existing){
     var c = cat();
     var usedLow = c.markets.filter(function(m){ return !existing || m.id !== existing.id; }).map(function(m){ return m.name.toLowerCase(); });
-    var known = data.marketNames.filter(function(n){ return usedLow.indexOf(n.toLowerCase()) === -1; }).sort(byName);
+    var known = data.marketNames.filter(function(n){ return usedLow.indexOf(n.toLowerCase()) === -1; }).sort(byStr);
     var chipsHtml = known.length ? '<label>Selecionar</label><div class="chips" id="mktChips">' + known.map(function(n){
       return '<button type="button" class="chip" data-mktname="'+esc(n)+'">'+esc(n)+'</button>';
     }).join('') + '</div>' : '';
@@ -525,7 +526,7 @@ label{display:block;font-size:14px;font-weight:600;margin:14px 0 6px}
       var cc = data.categories.find(function(x){ return x.id === catId; });
       var mkts = cc ? cc.markets.slice().sort(byName) : [];
       var mktLow = mkts.map(function(x){ return x.name.toLowerCase(); });
-      var extraNames = data.marketNames.filter(function(n){ return mktLow.indexOf(n.toLowerCase()) === -1; }).sort(byName);
+      var extraNames = data.marketNames.filter(function(n){ return mktLow.indexOf(n.toLowerCase()) === -1; }).sort(byStr);
       var html = mkts.map(function(x){ return '<option value="id:'+x.id+'">'+esc(x.name)+'</option>'; }).join('');
       if(extraNames.length) html += extraNames.map(function(n){ return '<option value="new:'+esc(n)+'">'+esc(n)+' (novo nesta categoria)</option>'; }).join('');
       pmkt.innerHTML = html;
